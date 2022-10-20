@@ -5,7 +5,7 @@ provider "aws" {
 data "aws_ami" "os" {
   most_recent = true
   owners      = ["${var.ami_owner}"]
-  name_regex  = var.ami_owner == "013907871322" ? "^suse-sles-15-sp3-v[0-9]{8}-hvm.*" : ".*"
+  name_regex  = var.ami_owner == "961395268858" ? "^CentOS 7.9.2009*" : ".*"
 
   filter {
     name   = "name"
@@ -22,6 +22,13 @@ data "aws_ami" "os" {
 resource "tls_private_key" "ssh" {
   algorithm = "RSA"
   rsa_bits  = 4096
+}
+
+module "key_pair" {
+  source = "terraform-aws-modules/key-pair/aws"
+
+  key_name = "rke2-cluster"
+  public_key = trimspace(tls_private_key.ssh.public_key_openssh)
 }
 
 resource "local_file" "ssh_pem" {
@@ -63,19 +70,19 @@ module "vpc" {
 }
 
 module "rke2" {
-  source = "git::https://github.com/samuelattwood/rke2-aws-tf.git"
+  source = "git::https://github.com/rancherfederal/rke2-aws-tf.git"
 
   cluster_name = var.cluster_name
   vpc_id       = module.vpc.vpc_id
-  subnets      = module.vpc.public_subnets # Note: Public subnets used for demo purposes, this is not recommended in production
+  subnets      = module.vpc.private_subnets # Note: Public subnets used for demo purposes, this is not recommended in production
 
-  ami                   = data.aws_ami.os.image_id
+  ami                   = data.aws_ami.os.image_id # Note: Multi OS is primarily for example purposes
   ssh_authorized_keys   = [tls_private_key.ssh.public_key_openssh]
   instance_type         = var.server_instance_type
   controlplane_internal = false # Note this defaults to best practice of true, but is explicitly set to public for demo purposes
   servers               = 3
 
-  # Enable AWS Cloud Controller Manager
+  # Enable AWS Cloud Controller Managerssh
   enable_ccm = true
 
   rke2_version          = var.rke2_version
@@ -86,20 +93,19 @@ EOT
 
   tags = var.tags
 
-  install_rancher = var.install_rancher
+  # install_rancher = var.install_rancher
 }
 
 module "agents" {
-  source = "git::https://github.com/samuelattwood/rke2-aws-tf.git//modules/agent-nodepool"
+  source = "git::https://github.com/rancherfederal/rke2-aws-tf.git//modules/agent-nodepool"
 
   name    = "generic"
   vpc_id  = module.vpc.vpc_id
-  subnets = module.vpc.public_subnets # Note: Public subnets used for demo purposes, this is not recommended in production
-
+  subnets = module.vpc.private_subnets 
   ami                 = data.aws_ami.os.image_id
   ssh_authorized_keys = [tls_private_key.ssh.public_key_openssh]
   spot                = false
-  asg                 = { min : 1, max : 10, desired : 2 }
+  asg                 = { min : 1, max : 10, desired : 3 }
   instance_type       = var.agent_instance_type
 
   # Enable AWS Cloud Controller Manager and Cluster Autoscaler
@@ -110,6 +116,7 @@ module "agents" {
   rke2_config = <<-EOT
 node-label:
   - "name=generic"
+  
 EOT
 
   cluster_data = module.rke2.cluster_data
@@ -131,7 +138,21 @@ output "lb_url" {
   value = module.rke2.server_url
 }
 
-output "rancher_bootstrap_password" {
-  value = module.rke2.rancher_bootstrap_password
-  sensitive = true
-}
+# Generic outputs as examples
+# output "rke2" {
+#   value = module.rke2
+# }
+# # Example method of fetching kubeconfig from state store, requires aws cli and bash locally
+# resource "null_resource" "kubeconfig" {
+#   depends_on = [module.rke2]
+
+#   provisioner "local-exec" {
+#     interpreter = ["bash", "-c"]
+#     command     = "aws s3 cp ${module.rke2.kubeconfig_path} rke2.yaml"
+#   }
+# }
+# output "rancher_bootstrap_password" {
+#   # value = module.rke2.rancher_bootstrap_password
+#   sensitive = true
+# }
+

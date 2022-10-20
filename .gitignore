@@ -1,0 +1,6 @@
+.terraform.lock.hcl
+.terraform/
+rke2
+rke2.yaml
+terraform.tfstate
+terraform.tfstate.backup

@@ -1,11 +1,11 @@
 variable "cluster_name" {
   type    = string
-  default = "demo-cluster"
+  default = "rke2-cluster"
 }
 
 variable "aws_region" {
   type    = string
-  default = "us-east-1"
+  default = "us-gov-east-1"
 }
 
 variable "server_instance_type" {
@@ -18,14 +18,15 @@ variable "agent_instance_type" {
   default = "t3a.large"
 }
 
+
 variable "ami_owner" {
   type    = string
-  default = "013907871322" #SUSE
+  
 }
 
 variable "ami_filter_name" {
   type    = string
-  default = "suse-sles-15-sp3"
+  default = "CentOS 7.9.2009"
 }
 
 variable "rke2_version" {
